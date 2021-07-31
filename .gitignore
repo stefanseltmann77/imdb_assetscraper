@@ -4,3 +4,5 @@ sphinx
 run
 /.mypy_cache/
 /.pytest_cache/
+/dist/
+/imdb_assetscraper.egg-info/

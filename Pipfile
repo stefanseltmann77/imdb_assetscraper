@@ -7,15 +7,16 @@ name = "pypi"
 beautifulsoup4 = '*'
 
 [dev-packages]
+build = "*"
+colorama = '*'
+flake8 = '*'
 pytest = '*'
 pytest-cov = '*'
 mypy = '*'
 sphinx = '*'
-flake8 = '*'
-twine = '*'
 setuptools = '*'
+twine = '*'
 wheel = '*'
-colorama = '*'
 
 [requires]
 python_version = "3.9"

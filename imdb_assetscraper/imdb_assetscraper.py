@@ -178,10 +178,6 @@ class IMDBAssetScraper:
         title_orig = soup.find('meta', {'property': 'og:title'})['content']
         return int(title_orig.split('(')[1].split(')')[0])
 
-    # < li
-    # role = "presentation"
-    #
-    # class ="ipc-inline-list__item" > < a href="/title/tt2120120/releaseinfo?ref_=tt_ov_rdat#releases" class ="ipc-link ipc-link--baseAlt ipc-link--inherit-color TitleBlockMetaData__StyledTextLink-sc-12ein40-1 rgaOW" > 2015 < / a > < span class ="TitleBlockMetaData__ListItemText-sc-12ein40-2 jedhex" > 2015 < / span > < / li >
     @staticmethod
     def _parse_fsk_from_soup(soup: BeautifulSoup) -> int:
         """fsk is the German required age to access an asset"""
