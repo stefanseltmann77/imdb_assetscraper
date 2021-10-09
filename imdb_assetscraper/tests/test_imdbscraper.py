@@ -33,7 +33,7 @@ class TestIMDBScraper:
     def test__parse_runtime_from_soup(self, scraper, soup):
         assert scraper._parse_runtime_from_soup(soup) == 152
 
-    def test_parse_genre_from_soup(self, scraper, soup):
+    def test__parse_genre_from_soup(self, scraper, soup):
         result = scraper._parse_genre_from_soup(soup)
         assert result == {'Action', 'Drama', 'Crime'}
 

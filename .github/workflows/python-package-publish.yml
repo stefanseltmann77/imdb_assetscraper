@@ -1,12 +1,16 @@
 name: Python Package Publish
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+      - main
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
     strategy:
-      max-parallel: 4
+      max-parallel: 1
 
     steps:
       - uses: actions/checkout@v2

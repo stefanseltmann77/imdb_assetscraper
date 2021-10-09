@@ -5,6 +5,7 @@ from logging import NullHandler
 from pathlib import Path
 from typing import Optional, Any
 from urllib import request
+from urllib.request import HTTPCookieProcessor
 
 import bs4
 from bs4 import BeautifulSoup
@@ -28,7 +29,7 @@ class IMDBAsset:
 
 class IMDBAssetScraper:
     logger: logging.Logger
-    URL_BASE: str = 'http://www.imdb.com/title/tt'
+    URL_BASE: str = 'https://imdb.com/title/tt'
     dir_cache: Path
 
     def __init__(self, dir_cache: Path):
@@ -62,21 +63,21 @@ class IMDBAssetScraper:
         file_path: Path = Path(self.dir_cache, f"{imdb_movie_id}.imdb_movie")
         if use_cache:
             try:
-                with file_path.open('rb') as file_handle:
-                    website_string = file_handle.read()
-                    self.logger.info(f"Loading cached website for {imdb_movie_id=}.")
+                website_string = file_path.read_bytes()
+                self.logger.info(f"Loading cached website for {imdb_movie_id=}.")
             except FileNotFoundError:
                 self.logger.info(f"{imdb_movie_id=} not found in cache.")
         if not website_string or not use_cache:
             self.logger.info(f"Retrieving website for {imdb_movie_id=}.")
-            url_movie: str = self.URL_BASE + str(imdb_movie_id).zfill(7)
-            website_string = request.urlopen(url_movie).read()
+            url_movie: str = self.URL_BASE + str(imdb_movie_id).zfill(7) + "/"
+            opener = request.build_opener(HTTPCookieProcessor())
+            website_string = opener.open(url_movie).read()
             for sub_site in ('parentalguide', 'fullcredits', 'awards', 'business', 'companycredits', 'technical',
                              'keywords', 'plotsummary'):
-                website_sub = request.urlopen(f'{url_movie}/{sub_site}')
+                self.logger.debug(f"Start loading {sub_site=}.")
+                website_sub = opener.open(f'{url_movie}{sub_site}')
                 website_string += website_sub.read()
-            with file_path.open('wb') as f:
-                f.write(website_string)
+            file_path.write_bytes(website_string)
         return website_string.decode("utf-8")
 
     def parse_webcontent_4_imdb_movie(self, imdb_movie_id: int, website: str) -> IMDBAsset:
