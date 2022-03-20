@@ -109,8 +109,15 @@ class IMDBAssetScraper:
             rating_imdb_raw = soup.select('span[class^="AggregateRatingButton__RatingScore"]')[0].get_text()
             rating_imdb_count_raw = soup.select('div[class^="AggregateRatingButton__TotalRatingAmount"]')[0].get_text()
         except IndexError:
-            rating_imdb_raw = soup.find('span', attrs={'itemprop': 'ratingValue'}).get_text()
-            rating_imdb_count_raw = soup.find('span', attrs={'itemprop': 'ratingCount'}).get_text()
+            try:
+                rating_imdb_raw = soup.find('span', attrs={'itemprop': 'ratingValue'}).get_text()
+                rating_imdb_count_raw = soup.find('span', attrs={'itemprop': 'ratingCount'}).get_text()
+            except AttributeError:
+                rating_imdb_raw = soup.find('div', attrs={
+                    'data-testid': 'hero-rating-bar__aggregate-rating__score'}).span.get_text()
+                rating_imdb_count_raw = soup.find('div', attrs={
+                    'data-testid': 'hero-rating-bar__aggregate-rating__score'}).next_sibling.next_sibling.get_text()
+
         rating_imdb = float(rating_imdb_raw)
 
         if rating_imdb_count_raw.endswith('K'):
@@ -150,7 +157,11 @@ class IMDBAssetScraper:
             soup_result = soup_result.div.div.div.get_text()
             story_line = soup_result.replace("\n", "").replace('"', "").strip()
         except IndexError:
-            story_line = soup.find('div', {'id': 'titleStoryLine'}).div.p.span.get_text().strip()
+            try:
+                story_line = soup.find('div', {'id': 'titleStoryLine'}).div.p.span.get_text().strip()
+            except AttributeError:
+                soup_result = soup.select('div[data-testid^="storyline-plot-summary"]')[0]
+                story_line = soup_result.div.div.get_text().strip()
         return story_line
 
     def _parse_synopsis_from_soup(self, soup: BeautifulSoup) -> str:
@@ -164,10 +175,10 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_budget_from_soup(soup: BeautifulSoup) -> Optional[int]:
-        budget_raw = soup(text=re.compile('Budget'))
+        budget_raw = soup.find('li', {'data-testid': 'title-boxoffice-budget'}).div.get_text().strip()
         if budget_raw:
             try:
-                budget = budget_raw[0].next.replace('$', '').replace(',', '').strip()
+                budget = budget_raw.replace('$', '').replace(',', '').replace('(estimated)', '').strip()
             except TypeError:
                 budget = None
         else:
