@@ -175,10 +175,11 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_budget_from_soup(soup: BeautifulSoup) -> Optional[int]:
-        budget_raw = soup.find('li', {'data-testid': 'title-boxoffice-budget'}).div.get_text().strip()
+        budget_raw = soup.find('li', {'data-testid': 'title-boxoffice-budget'})
         if budget_raw:
+            budget_raw_content = budget_raw.div.get_text().strip()
             try:
-                budget = budget_raw.replace('$', '').replace(',', '').replace('(estimated)', '').strip()
+                budget = budget_raw_content.replace('$', '').replace(',', '').replace('(estimated)', '').strip()
             except TypeError:
                 budget = None
         else:
