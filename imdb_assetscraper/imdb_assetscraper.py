@@ -56,8 +56,8 @@ class IMDBAssetScraper:
         """Provide the website for a given imdb_movie_id as a string to be parsed
 
         :param imdb_movie_id: unique ID used by imdb
-        :param use_cache: if true, a already stored string will be used and no request to the website will be made
-        :return: raw string of the website
+        :param use_cache: if true, an already stored string will be used and no request to the website will be made
+        :return: raw string of the website, with all subsites appended
         """
         website_string: bytes = b""
         file_path: Path = Path(self.dir_cache, f"{imdb_movie_id}.imdb_movie")
@@ -160,8 +160,13 @@ class IMDBAssetScraper:
             try:
                 story_line = soup.find('div', {'id': 'titleStoryLine'}).div.p.span.get_text().strip()
             except AttributeError:
-                soup_result = soup.select('div[data-testid^="storyline-plot-summary"]')[0]
-                story_line = soup_result.div.div.get_text().strip()
+                try:
+                    soup_result = soup.select('div[data-testid^="storyline-plot-summary"]')[0]
+                    story_line = soup_result.div.div.get_text().strip()
+                except IndexError:
+                    soup_result = soup.select('ul[id="plot-summaries-content"]')[0]
+                    summaries = [p_tag.text for p_tag in soup_result.select('p')]
+                    story_line = '; '.join(summaries)
         return story_line
 
     def _parse_synopsis_from_soup(self, soup: BeautifulSoup) -> str:
