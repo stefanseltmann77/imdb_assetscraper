@@ -3,9 +3,9 @@ import re
 from dataclasses import dataclass
 from logging import NullHandler
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Union
 from urllib import request
-from urllib.request import HTTPCookieProcessor
+from urllib.request import HTTPCookieProcessor, Request
 
 import bs4
 from bs4 import BeautifulSoup
@@ -22,7 +22,7 @@ class IMDBAsset:
     genres: set[str]
     persons: dict[str, list[int]]
     awards: dict[str, Any]
-    ratings: dict
+    ratings: dict[str, Any]
     budget: Optional[int]
     synopsis: str
 
@@ -104,7 +104,7 @@ class IMDBAssetScraper:
         return asset_obj
 
     @staticmethod
-    def _parse_rating_from_soup(soup: BeautifulSoup):
+    def _parse_rating_from_soup(soup: BeautifulSoup) -> dict[str, Union[int, float]]:
         try:
             rating_imdb_raw = soup.select('span[class^="AggregateRatingButton__RatingScore"]')[0].get_text()
             rating_imdb_count_raw = soup.select('div[class^="AggregateRatingButton__TotalRatingAmount"]')[0].get_text()
@@ -155,7 +155,7 @@ class IMDBAssetScraper:
         try:
             soup_result = soup.select('div[class^="Storyline__StorylineWrapper"]')[0]
             soup_result = soup_result.div.div.div.get_text()
-            story_line = soup_result.replace("\n", "").replace('"', "").strip()
+            story_line: str = soup_result.replace("\n", "").replace('"', "").strip()
         except IndexError:
             try:
                 story_line = soup.find('div', {'id': 'titleStoryLine'}).div.p.span.get_text().strip()
@@ -184,7 +184,8 @@ class IMDBAssetScraper:
         if budget_raw:
             budget_raw_content = budget_raw.div.get_text().strip()
             try:
-                budget = budget_raw_content.replace('$', '').replace(',', '').replace('(estimated)', '').strip()
+                budget: Optional[int] = \
+                    int(budget_raw_content.replace('$', '').replace(',', '').replace('(estimated)', '').strip())
             except TypeError:
                 budget = None
         else:
@@ -215,9 +216,9 @@ class IMDBAssetScraper:
         return runtime
 
     @staticmethod
-    def _parse_awards_from_soup(soup: BeautifulSoup) -> dict:
+    def _parse_awards_from_soup(soup: BeautifulSoup) -> dict[str, Any]:
         search = soup.find_all('table', {'class': 'awards'})
-        awards: dict = {}
+        awards: dict[str, Any] = {}
         for award_table in search:
             cells = award_table.find_all('td')
             award_outcome_current = None
@@ -229,13 +230,14 @@ class IMDBAssetScraper:
                     award_category_current = cell.find('span').text
                 elif cell_htmlclass == 'award_description':
                     award_description = cell.text.split('\n')[1].strip()
-                    awards.setdefault(award_category_current, []).append((award_description, award_outcome_current))
+                    if award_category_current:  # from previous loop
+                        awards.setdefault(award_category_current, []). \
+                            append((award_description, award_outcome_current))
                 else:
                     raise Exception
         return awards
 
-    @staticmethod
-    def get_chart_ids(listing: str):
+    def get_chart_ids(self, listing: str) -> list[int]:
         listing_map = {'URL_TOP250': "https://www.imdb.com/chart/top?ref_=nv_mv_250",
                        'URL_BOTTOM100': "https://www.imdb.com/chart/bottom",
                        'URL_TOP250_ENGL': "https://www.imdb.com/chart/top-english-movies"}
