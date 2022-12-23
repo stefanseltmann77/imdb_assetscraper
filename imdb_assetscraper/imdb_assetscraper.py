@@ -37,6 +37,7 @@ class IMDBAssetScraper:
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(NullHandler())
         self.dir_cache = dir_cache
+        self.header: dict[str, str] = {'User-Agent': 'Mozilla/5.0'}
 
     def process_imdb_movie_id(self, imdb_movie_id: int, use_cache: bool = False) -> IMDBAsset:
         """Get website for a given imdb_movie_id and return parsed asset
@@ -70,12 +71,13 @@ class IMDBAssetScraper:
         if not website_string or not use_cache:
             self.logger.info(f"Retrieving website for {imdb_movie_id=}.")
             url_movie: str = self.URL_BASE + str(imdb_movie_id).zfill(7) + "/"
+            self.logger.debug(f"URL {url_movie=}.")
             opener = request.build_opener(HTTPCookieProcessor())
-            website_string = opener.open(url_movie).read()
+            website_string = opener.open(Request(url_movie, headers=self.header)).read()
             for sub_site in ('parentalguide', 'fullcredits', 'awards', 'business', 'companycredits', 'technical',
                              'keywords', 'plotsummary'):
                 self.logger.debug(f"Start loading {sub_site=}.")
-                website_sub = opener.open(f'{url_movie}{sub_site}')
+                website_sub = opener.open(Request(f'{url_movie}{sub_site}', headers=self.header))
                 website_string += website_sub.read()
             file_path.write_bytes(website_string)
         return website_string.decode("utf-8")
@@ -245,6 +247,6 @@ class IMDBAssetScraper:
         if not listing_url:
             raise Exception(f"Not supported listing. Choose from {listing_map.keys()}!")
         else:
-            website = request.urlopen(listing_url).read()
+            website = request.urlopen(Request(listing_url, headers=self.header)).read()
             soup = BeautifulSoup(website, 'html.parser')
             return [int(finding['data-tconst'].strip('t')) for finding in soup.find_all('div', {'class': 'wlb_ribbon'})]
