@@ -1,6 +1,25 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "imdb_assetscraper"
+description = "imdb_assetscraper"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "beautifulsoup4",
+]
+dynamic = ["version", "readme"]
+
+[tool.setuptools]
+packages = ["imdb_assetscraper"]
+
+[tool.setuptools.dynamic]
+version = { attr = "imdb_assetscraper.__version__" }
+readme = { file = ["README.rst"] }
+
