@@ -106,29 +106,35 @@ class IMDBAssetScraper:
         return asset_obj
 
     @staticmethod
-    def _parse_rating_from_soup(soup: BeautifulSoup) -> dict[str, Union[int, float]]:
+    def _parse_rating_from_soup(soup: BeautifulSoup) -> dict[str, Union[int, float, None]]:
         try:
-            rating_imdb_raw = soup.select('span[class^="AggregateRatingButton__RatingScore"]')[0].get_text()
+            res = soup.select('span[class^="AggregateRatingButton__RatingScore"]')[0]
+            if res:
+                rating_imdb_raw = res.get_text()
+            else:
+                rating_imdb_raw = 0
             rating_imdb_count_raw = soup.select('div[class^="AggregateRatingButton__TotalRatingAmount"]')[0].get_text()
         except IndexError:
             try:
                 rating_imdb_raw = soup.find('span', attrs={'itemprop': 'ratingValue'}).get_text()
                 rating_imdb_count_raw = soup.find('span', attrs={'itemprop': 'ratingCount'}).get_text()
             except AttributeError:
-                rating_imdb_raw = soup.find('div', attrs={
-                    'data-testid': 'hero-rating-bar__aggregate-rating__score'}).span.get_text()
-                rating_imdb_count_raw = soup.find('div', attrs={
-                    'data-testid': 'hero-rating-bar__aggregate-rating__score'}).next_sibling.next_sibling.get_text()
+                res = soup.find('div', attrs={'data-testid': 'hero-rating-bar__aggregate-rating__score'})
+                rating_imdb_raw = res.get_text() if res else None
+                res = soup.find('div', attrs={'data-testid': 'hero-rating-bar__aggregate-rating__score'})
+                rating_imdb_count_raw = res.next_sibling.next_sibling.get_text() if res else None
 
-        rating_imdb = float(rating_imdb_raw)
+        rating_imdb = float(rating_imdb_raw) if rating_imdb_raw else None
 
-        if rating_imdb_count_raw.endswith('K'):
-            rating_imdb_count = float(rating_imdb_count_raw[:-1]) * 1_000
-        elif rating_imdb_count_raw.endswith('M'):
-            rating_imdb_count = float(rating_imdb_count_raw[:-1]) * 1_000 * 1_000
+        if rating_imdb_count_raw:
+            if rating_imdb_count_raw.endswith('K'):
+                rating_imdb_count = float(rating_imdb_count_raw[:-1]) * 1_000
+            elif rating_imdb_count_raw.endswith('M'):
+                rating_imdb_count = float(rating_imdb_count_raw[:-1]) * 1_000 * 1_000
+            else:
+                rating_imdb_count = int(rating_imdb_count_raw.replace(',', ''))
         else:
-            rating_imdb_count = int(rating_imdb_count_raw.replace(',', ''))
-
+            rating_imdb_count = None
         return {'rating_imdb': rating_imdb,
                 'rating_imdb_count': rating_imdb_count}
 
@@ -194,10 +200,15 @@ class IMDBAssetScraper:
             budget = None
         return budget
 
+    def _parse_year_from_soup(self, soup: BeautifulSoup) -> int:
+        result = soup.find('meta', {'property': 'og:title'})
+        year = self._parse_year(result['content'])
+        return year
+
     @staticmethod
-    def _parse_year_from_soup(soup: BeautifulSoup) -> int:
-        title_orig = soup.find('meta', {'property': 'og:title'})['content']
-        return int(title_orig.split('(')[1].split(')')[0])
+    def _parse_year(raw_str: str) -> int:
+        content_last_brackets = raw_str.split('(')[-1].split(')')[0]
+        return int(content_last_brackets.replace("Video ", ""))
 
     @staticmethod
     def _parse_fsk_from_soup(soup: BeautifulSoup) -> int:
