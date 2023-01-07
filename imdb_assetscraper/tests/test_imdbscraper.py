@@ -30,6 +30,10 @@ class TestIMDBScraper:
     def test__parse_year_from_soup(self, scraper: IMDBAssetScraper, soup: BeautifulSoup) -> None:
         assert scraper._parse_year_from_soup(soup) == 2008
 
+    def test__parse_year(self, scraper: IMDBAssetScraper):
+        input_str = "Bloodywood - Raj Against the Machine (The Documentary) (Video 2020) - IMDb"
+        assert scraper._parse_year(input_str) == 2020
+
     def test__parse_runtime_from_soup(self, scraper: IMDBAssetScraper, soup: BeautifulSoup) -> None:
         assert scraper._parse_runtime_from_soup(soup) == 152
 
