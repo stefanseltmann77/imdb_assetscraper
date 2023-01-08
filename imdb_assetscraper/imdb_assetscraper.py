@@ -124,6 +124,9 @@ class IMDBAssetScraper:
                 res = soup.find('div', attrs={'data-testid': 'hero-rating-bar__aggregate-rating__score'})
                 rating_imdb_count_raw = res.next_sibling.next_sibling.get_text() if res else None
 
+        if rating_imdb_raw and '/' in rating_imdb_raw:
+            rating_imdb_raw = rating_imdb_raw.split('/')[0]
+
         rating_imdb = float(rating_imdb_raw) if rating_imdb_raw else None
 
         if rating_imdb_count_raw:
