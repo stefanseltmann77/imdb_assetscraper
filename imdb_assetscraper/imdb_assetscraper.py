@@ -77,21 +77,29 @@ class IMDBAssetScraper:
             for sub_site in ('parentalguide', 'fullcredits', 'awards', 'business', 'companycredits', 'technical',
                              'keywords', 'plotsummary'):
                 self.logger.debug(f"Start loading {sub_site=}.")
-                website_sub = opener.open(Request(f'{url_movie}{sub_site}', headers=self.header))
+                website_sub = opener.open(Request(f'{url_movie}{sub_site}/', headers=self.header))
                 website_string += website_sub.read()
             file_path.write_bytes(website_string)
         return website_string.decode("utf-8")
 
+    def _parse_titel_orig(self, soup):
+        search = soup.find('meta', {'property': 'og:title'})
+        if search:
+            title_orig = search['content'].split('(')[0].strip()
+            return title_orig
+        else:
+            raise Exception("No Original Titel found")
+
     def parse_webcontent_4_imdb_movie(self, imdb_movie_id: int, website: str) -> IMDBAsset:
         self.logger.info(f"Parsing webcontent for {imdb_movie_id=}")
         soup = BeautifulSoup(website, 'html.parser')
-        title_orig = soup.find('meta', {'property': 'og:title'})['content']
-        persons = self._parse_credits_from_soup(soup.find('div', {'id': 'fullcredits_content'}))
+        title_orig = self._parse_titel_orig(soup)
+        persons = self._parse_credits_from_soup(soup)
         directors_raw = soup.find('h4', text=re.compile('Directed by')).find_next('tbody').find_all('a')
         for director_raw in directors_raw:
             persons.setdefault('director', []).append(re.findall('name/nm.*/', director_raw['href'])[0][7:-1])
         asset_obj = IMDBAsset(imdb_movie_id,
-                              title_orig=title_orig.split('(')[0].strip(),
+                              title_orig=title_orig,
                               year=self._parse_year_from_soup(soup),
                               duration=self._parse_runtime_from_soup(soup),
                               fsk=self._parse_fsk_from_soup(soup),
@@ -152,11 +160,15 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_credits_from_soup(soup: BeautifulSoup) -> dict[str, list[int]]:
-        soup_result = soup.find("table", attrs={'class': 'cast_list'})
-        if soup_result:
-            res: list[bs4.element.Tag] = soup_result.findChildren('a', {'href': re.compile('/name/nm+.')})
-            actor_ids: list[int] = [int(chunk.attrs.get("href", "").split("/")[2][2:]) for chunk in res[::2]]
-            persons = {'actor': actor_ids}
+        result = soup.find('div', {'id': 'fullcredits_content'})
+        if result:
+            soup_result = result.find("table", attrs={'class': 'cast_list'})
+            if soup_result:
+                res: list[bs4.element.Tag] = soup_result.findChildren('a', {'href': re.compile('/name/nm+.')})
+                actor_ids: list[int] = [int(chunk.attrs.get("href", "").split("/")[2][2:]) for chunk in res[::2]]
+                persons = {'actor': actor_ids}
+            else:
+                persons = {'actor': []}
         else:
             persons = {'actor': []}
         return persons
@@ -164,9 +176,8 @@ class IMDBAssetScraper:
     def _parse_storyline_from_soup(self, soup: BeautifulSoup) -> str:
 
         try:
-            soup_result = soup.select('div[class^="Storyline__StorylineWrapper"]')[0]
-            soup_result = soup_result.div.div.div.get_text()
-            story_line: str = soup_result.replace("\n", "").replace('"', "").strip()
+            soup_result = soup.find_all('div', attrs={'data-testid': 'sub-section-summaries'})
+            story_line: str = soup_result[0].get_text(separator=" ")
         except IndexError:
             try:
                 story_line = soup.find('div', {'id': 'titleStoryLine'}).div.p.span.get_text().strip()
@@ -182,7 +193,7 @@ class IMDBAssetScraper:
 
     def _parse_synopsis_from_soup(self, soup: BeautifulSoup) -> str:
         try:
-            synopsis: str = soup.find('ul', {'id': 'plot-synopsis-content'}).get_text()
+            synopsis: str = soup.find('div', {'data-testid': 'sub-section-synopsis'}).get_text()
         except AttributeError:
             synopsis = ""  # fixme
         if not synopsis:
@@ -226,10 +237,10 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_runtime_from_soup(soup: BeautifulSoup) -> Optional[int]:
-
-        search = list(soup.find('div', attrs={'id': 'technical_content'}).table.tr.children)[3].get_text()
-        runtime = int(search.split('(')[1].split(' ')[0])
-        return runtime
+        search = soup.find_all('button', string='Runtime')
+        runtime_raw = search[0].next_sibling.text
+        chunks = runtime_raw.split()
+        return int(chunks[0]) * 60 + int(chunks[2])
 
     @staticmethod
     def _parse_awards_from_soup(soup: BeautifulSoup) -> dict[str, Any]:
