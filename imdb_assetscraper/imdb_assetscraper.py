@@ -26,6 +26,8 @@ class IMDBAsset:
     budget: Optional[int]
     synopsis: str
 
+class ParsingError(Exception):
+    ...
 
 class IMDBAssetScraper:
     logger: logging.Logger
@@ -93,19 +95,14 @@ class IMDBAssetScraper:
     def parse_webcontent_4_imdb_movie(self, imdb_movie_id: int, website: str) -> IMDBAsset:
         self.logger.info(f"Parsing webcontent for {imdb_movie_id=}")
         soup = BeautifulSoup(website, 'html.parser')
-        title_orig = self._parse_titel_orig(soup)
-        persons = self._parse_credits_from_soup(soup)
-        directors_raw = soup.find('h4', text=re.compile('Directed by')).find_next('tbody').find_all('a')
-        for director_raw in directors_raw:
-            persons.setdefault('director', []).append(re.findall('name/nm.*/', director_raw['href'])[0][7:-1])
         asset_obj = IMDBAsset(imdb_movie_id,
-                              title_orig=title_orig,
+                              title_orig=self._parse_titel_orig(soup),
                               year=self._parse_year_from_soup(soup),
                               duration=self._parse_runtime_from_soup(soup),
                               fsk=self._parse_fsk_from_soup(soup),
                               storyline=self._parse_storyline_from_soup(soup),
                               genres=self._parse_genre_from_soup(soup),
-                              persons=persons,
+                              persons=self._parse_credits_from_soup(soup),
                               awards=self._parse_awards_from_soup(soup),
                               ratings=self._parse_rating_from_soup(soup),
                               budget=self._parse_budget_from_soup(soup),
@@ -171,6 +168,11 @@ class IMDBAssetScraper:
                 persons = {'actor': []}
         else:
             persons = {'actor': []}
+
+        if directors_tag := soup.find('h4', text=re.compile('Directed by')):
+            directors_raw = directors_tag.find_next('tbody').find_all('a')
+            for director_raw in directors_raw:
+                persons.setdefault('director', []).append(re.findall('name/nm.*/', director_raw['href'])[0][7:-1])
         return persons
 
     def _parse_storyline_from_soup(self, soup: BeautifulSoup) -> str:
@@ -230,6 +232,7 @@ class IMDBAssetScraper:
         soup_search_result = \
             soup.find_all('a', {'href': re.compile(r'/search/title\?certificates=(de|imdb_wg|DE|Germany):[0-9]')})
         if not soup_search_result:
+            # might not always be present, therefore 99 as a sentinel values
             fsk = 99
         else:
             fsk = int(soup_search_result[0].text.split(':')[1])
@@ -237,10 +240,9 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_runtime_from_soup(soup: BeautifulSoup) -> Optional[int]:
-        search = soup.find_all('button', string='Runtime')
-        runtime_raw = search[0].next_sibling.text
-        chunks = runtime_raw.split()
-        return int(chunks[0]) * 60 + int(chunks[2])
+        search_raw = soup.find_all('span', text=re.compile('\(\d*\smin\)'))
+        search = [int(result.text[1:-5]) for result in search_raw]
+        return max(search)
 
     @staticmethod
     def _parse_awards_from_soup(soup: BeautifulSoup) -> dict[str, Any]:
