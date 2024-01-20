@@ -241,7 +241,7 @@ class IMDBAssetScraper:
     @staticmethod
     def _parse_runtime_from_soup(soup: BeautifulSoup) -> Optional[int]:
         search_raw = soup.find_all('span', text=re.compile('\(\d*\smin\)'))
-        search = [int(result.text[1:-5]) for result in search_raw]
+        search = [int(result.text.split(' min').pop(0)[1:]) for result in search_raw]
         return max(search)
 
     @staticmethod
