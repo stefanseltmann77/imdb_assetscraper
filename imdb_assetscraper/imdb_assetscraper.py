@@ -1,5 +1,7 @@
+import json
 import logging
 import re
+from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from logging import NullHandler
 from pathlib import Path
@@ -26,8 +28,32 @@ class IMDBAsset:
     budget: Optional[int]
     synopsis: str
 
+
 class ParsingError(Exception):
     ...
+
+
+class Parser(ABC):
+    logger: logging.Logger
+
+    def __init__(self, soup: BeautifulSoup):
+        self.logger = logging.getLogger(__name__)
+        self.soup = soup
+
+    @abstractmethod
+    def parse(self):
+        pass
+
+
+class ParserRatingJson(Parser):
+    def parse(self) -> dict[str, Union[int, float, None]]:
+        json_chunk = json.loads(self.soup.find('script', attrs={'type': 'application/ld+json'}).text)
+        ratings_info = json_chunk['aggregateRating']
+        rating_imdb = float(ratings_info['ratingValue'])
+        rating_imdb_count = ratings_info['ratingCount']
+        return {'rating_imdb': rating_imdb,
+                'rating_imdb_count': rating_imdb_count}
+
 
 class IMDBAssetScraper:
     logger: logging.Logger
@@ -112,6 +138,12 @@ class IMDBAssetScraper:
 
     @staticmethod
     def _parse_rating_from_soup(soup: BeautifulSoup) -> dict[str, Union[int, float, None]]:
+
+        try:
+            return ParserRatingJson(soup).parse()
+        except:
+            pass
+
         try:
             res = soup.select('span[class^="AggregateRatingButton__RatingScore"]')[0]
             if res:
@@ -121,8 +153,18 @@ class IMDBAssetScraper:
             rating_imdb_count_raw = soup.select('div[class^="AggregateRatingButton__TotalRatingAmount"]')[0].get_text()
         except IndexError:
             try:
-                rating_imdb_raw = soup.find('span', attrs={'itemprop': 'ratingValue'}).get_text()
-                rating_imdb_count_raw = soup.find('span', attrs={'itemprop': 'ratingCount'}).get_text()
+                soup_result = soup.find('span', attrs={'itemprop': 'ratingValue'})
+                if soup_result:
+                    rating_imdb_raw = soup_result.get_text()
+                else:
+                    raise Exception()  # fixme
+                soup_result = soup.find('span', attrs={'itemprop': 'ratingCount'})
+
+                if soup_result:
+                    rating_imdb_count_raw = soup_result.get_text()
+                else:
+                    raise Exception()  # fixme
+
             except AttributeError:
                 res = soup.find('div', attrs={'data-testid': 'hero-rating-bar__aggregate-rating__score'})
                 rating_imdb_raw = res.get_text() if res else None
@@ -203,13 +245,14 @@ class IMDBAssetScraper:
         return synopsis.replace("\n", "").replace('"', "").strip()
 
     @staticmethod
-    def _parse_budget_from_soup(soup: BeautifulSoup) -> Optional[int]:
+    def _parse_budget_from_soup(soup: BeautifulSoup) -> int | None:
         budget_raw = soup.find('li', {'data-testid': 'title-boxoffice-budget'})
         if budget_raw:
             budget_raw_content = budget_raw.div.get_text().strip()
             try:
-                budget: Optional[int] = \
-                    int(budget_raw_content.replace('$', '').replace(',', '').replace('(estimated)', '').strip())
+                budget: int | None = \
+                    int(budget_raw_content.replace('$', '').replace('€', '').
+                        replace(',', '').replace('(estimated)', '').strip())
             except TypeError:
                 budget = None
         else:
