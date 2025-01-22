@@ -10,7 +10,7 @@ from urllib import request
 from urllib.request import HTTPCookieProcessor, Request
 
 import bs4
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, ResultSet
 
 
 @dataclass
@@ -55,12 +55,24 @@ class ParserRatingJson(Parser):
                 'rating_imdb_count': rating_imdb_count}
 
 
+class ParserFSK(Parser):
+    def parse(self) -> int:
+        res: ResultSet = self.soup.find_all('li', attrs={'data-testid': 'certificates-item'})
+        for row in res:
+            if "Germany" in row.text:
+                fsk = int(row.find_next('a').text)
+                break
+        else:
+            fsk = 99
+        return fsk
+
+
 class IMDBAssetScraper:
     logger: logging.Logger
     URL_BASE: str = 'https://imdb.com/title/tt'
     dir_cache: Path
 
-    def __init__(self, dir_cache: Path):
+    def __init__(self, dir_cache: Path, zip_exports: bool = False):
         """:param dir_cache: local directory where the scraped objects will be stored."""
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(NullHandler())
@@ -272,14 +284,8 @@ class IMDBAssetScraper:
     @staticmethod
     def _parse_fsk_from_soup(soup: BeautifulSoup) -> int:
         """fsk is the German required age to access an asset"""
-        soup_search_result = \
-            soup.find_all('a', {'href': re.compile(r'/search/title\?certificates=(de|imdb_wg|DE|Germany):[0-9]')})
-        if not soup_search_result:
-            # might not always be present, therefore 99 as a sentinel values
-            fsk = 99
-        else:
-            fsk = int(soup_search_result[0].text.split(':')[1])
-        return fsk
+
+        return ParserFSK(soup).parse()
 
     @staticmethod
     def _parse_runtime_from_soup(soup: BeautifulSoup) -> Optional[int]:
