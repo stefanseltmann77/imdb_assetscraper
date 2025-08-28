@@ -23,3 +23,13 @@ packages = ["imdb_assetscraper"]
 version = { attr = "imdb_assetscraper.__version__" }
 readme = { file = ["README.rst"] }
 
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+    "mypy>=1.17.1",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.11",
+    "tox>=4.28.4",
+]
+

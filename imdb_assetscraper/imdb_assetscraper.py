@@ -18,15 +18,19 @@ class IMDBAsset:
     imdb_movie_id: int
     title_orig: str
     year: int
-    duration: Optional[int]
-    fsk: int
+    duration: int | None  # TODO why have none?
     storyline: str
     genres: set[str]
     persons: dict[str, list[int]]
     awards: dict[str, Any]
     ratings: dict[str, Any]
-    budget: Optional[int]
+    budget: int | None
     synopsis: str
+    fsk: int | None = None
+
+    @property
+    def is_complete(self) -> bool:
+        return all([self.duration, self.fsk, self.ratings.get('rating_imdb')])
 
 
 class ParsingError(Exception):
@@ -153,7 +157,7 @@ class IMDBAssetScraper:
 
         try:
             return ParserRatingJson(soup).parse()
-        except:
+        except ValueError:  # todo make precise
             pass
 
         try:
@@ -263,7 +267,7 @@ class IMDBAssetScraper:
             budget_raw_content = budget_raw.div.get_text().strip()
             try:
                 budget: int | None = \
-                    int(budget_raw_content.replace('$', '').replace('€', '').
+                    int(budget_raw_content.replace('$', '').replace('€', '').replace('CA', '').
                         replace(',', '').replace('(estimated)', '').strip())
             except TypeError:
                 budget = None

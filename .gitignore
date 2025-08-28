@@ -6,3 +6,5 @@ run
 /.pytest_cache/
 /dist/
 /imdb_assetscraper.egg-info/
+uv.lock
+.tox
