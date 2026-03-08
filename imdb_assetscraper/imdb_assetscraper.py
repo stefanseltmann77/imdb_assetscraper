@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import zlib
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from logging import NullHandler
@@ -75,13 +76,16 @@ class IMDBAssetScraper:
     logger: logging.Logger
     URL_BASE: str = 'https://imdb.com/title/tt'
     dir_cache: Path
+    zip_exports: bool
 
     def __init__(self, dir_cache: Path, zip_exports: bool = False):
         """:param dir_cache: local directory where the scraped objects will be stored."""
         self.logger = logging.getLogger(__name__)
         self.logger.addHandler(NullHandler())
         self.dir_cache = dir_cache
-        self.header: dict[str, str] = {'User-Agent': 'Mozilla/5.0'}
+        self.header: dict[str, str] = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) '
+                                                     'Gecko/20100101 Firefox/47.0'}
+        self.zip_exports = zip_exports
 
     def process_imdb_movie_id(self, imdb_movie_id: int, use_cache: bool = False) -> IMDBAsset:
         """Get website for a given imdb_movie_id and return parsed asset
@@ -112,6 +116,10 @@ class IMDBAssetScraper:
                 self.logger.info(f"Loading cached website for {imdb_movie_id=}.")
             except FileNotFoundError:
                 self.logger.info(f"{imdb_movie_id=} not found in cache.")
+            try:
+                website_string.decode("utf-8")
+            except UnicodeDecodeError:
+                website_string = zlib.decompress(website_string)
         if not website_string or not use_cache:
             self.logger.info(f"Retrieving website for {imdb_movie_id=}.")
             url_movie: str = self.URL_BASE + str(imdb_movie_id).zfill(7) + "/"
@@ -120,10 +128,13 @@ class IMDBAssetScraper:
             website_string = opener.open(Request(url_movie, headers=self.header)).read()
             for sub_site in ('parentalguide', 'fullcredits', 'awards', 'business', 'companycredits', 'technical',
                              'keywords', 'plotsummary'):
-                self.logger.debug(f"Start loading {sub_site=}.")
+                self.logger.debug(f"Start loading {url_movie}{sub_site}.")
                 website_sub = opener.open(Request(f'{url_movie}{sub_site}/', headers=self.header))
                 website_string += website_sub.read()
-            file_path.write_bytes(website_string)
+            if self.zip_exports:
+                file_path.write_bytes(zlib.compress(website_string, level=zlib.Z_BEST_COMPRESSION))
+            else:
+                file_path.write_bytes(website_string)
         return website_string.decode("utf-8")
 
     def _parse_titel_orig(self, soup):
@@ -142,7 +153,7 @@ class IMDBAssetScraper:
                               year=self._parse_year_from_soup(soup),
                               duration=self._parse_runtime_from_soup(soup),
                               fsk=self._parse_fsk_from_soup(soup),
-                              storyline=self._parse_storyline_from_soup(soup),
+                              storyline=self._parse_storyline(soup),
                               genres=self._parse_genre_from_soup(soup),
                               persons=self._parse_credits_from_soup(soup),
                               awards=self._parse_awards_from_soup(soup),
@@ -211,6 +222,8 @@ class IMDBAssetScraper:
             genres = {element.span.get_text().strip() for element in genres_raw}
         except AttributeError:
             genres = {element.get_text().strip() for element in genres_raw}
+        if not genres:
+            logging.warning('No genres found')
         return genres
 
     @staticmethod
@@ -233,7 +246,9 @@ class IMDBAssetScraper:
                 persons.setdefault('director', []).append(re.findall('name/nm.*/', director_raw['href'])[0][7:-1])
         return persons
 
-    def _parse_storyline_from_soup(self, soup: BeautifulSoup) -> str:
+    @staticmethod
+    def _parse_storyline(soup: BeautifulSoup) -> str:
+        """Parse storyline from soup, which refers to short test on top of page."""
 
         try:
             soup_result = soup.find_all('div', attrs={'data-testid': 'sub-section-summaries'})
@@ -329,4 +344,5 @@ class IMDBAssetScraper:
         else:
             website = request.urlopen(Request(listing_url, headers=self.header)).read()
             soup = BeautifulSoup(website, 'html.parser')
-            return [int(finding['data-tconst'].strip('t')) for finding in soup.find_all('div', {'class': 'wlb_ribbon'})]
+            return [int(finding['data-tconst'].strip('t'))
+                    for finding in soup.find_all('div', {'class': 'wlb_ribbon'})]

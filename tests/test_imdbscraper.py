@@ -63,7 +63,7 @@ class TestIMDBScraper:
     #     assert scraper._parse_fsk_from_soup(soup) == 12
 
     def test__storyline_from_soup(self, scraper: IMDBAssetScraper, soup: BeautifulSoup) -> None:
-        assert scraper._parse_storyline_from_soup(soup).startswith('When the menace known as the Joker')
+        assert scraper._parse_storyline(soup).startswith('When the menace known as the Joker')
 
     def test__parse_credits_from_soup(self, soup: BeautifulSoup, scraper: IMDBAssetScraper) -> None:
         assert scraper._parse_credits_from_soup(soup)['actor'][:2] == [288, 5132]
